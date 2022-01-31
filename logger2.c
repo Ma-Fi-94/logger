@@ -16,7 +16,7 @@ void init() {
 
     // Set all desired GPIO pins to input mode and UP
     for (int i = 0; i <= NB_PINS; i++) {
-        pinMode (PINS[i], INPUT);
+        pinMode(PINS[i], INPUT);
         pullUpDnControl(PINS[i], PUD_UP);
     }
 }
@@ -55,11 +55,13 @@ int main() {
     
     while(1) {
         current_status = query_all();
+        
         if (!array_eq(old_status, current_status, NB_PINS)) {
             // At least one pins has changed.
-            // TBD
+            // TBD: logging to log file
         }
 
+        free (current_status);
         delay(100);
     }
     return 0;
