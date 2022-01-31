@@ -1,9 +1,10 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <wiringPi.h>
 
 // The GPIO pins we want to log
 int PINS[] = {2, 3, 4};
-int NB_PINS = (int) ((sizeof(PINS)) / (sizeof(PINS[0])))
+int NB_PINS = (int) ((sizeof(PINS)) / (sizeof(PINS[0])));
 
 void init() {
     /*
@@ -35,6 +36,13 @@ int* query_all() {
     return (current_status);
 }
 
+void print_array(int* x, int n) {
+    for (int i = 0; i < n; i++) {
+        printf("%i, ", x[i]);
+    }
+    printf("\n");
+}
+
 int array_eq(int* a, int* b, int n) {
     /*
      * Element-wise comparison of two int array of length n.
@@ -50,20 +58,26 @@ int array_eq(int* a, int* b, int n) {
 
 
 int main() {
+    init();
+
     int* old_status = query_all();
     int* current_status;
     
     while(1) {
         current_status = query_all();
-        
+
         if (!array_eq(old_status, current_status, NB_PINS)) {
-            // At least one pins has changed.
-            // TBD: logging to log file
+            print_array(current_status, NB_PINS);
+
+            // TBD: Logging to file
+
+            free(old_status);
+            old_status = query_all();
+
         }
 
-        free (current_status);
+        free(current_status);
         delay(100);
     }
     return 0;
 }
-
