@@ -55,7 +55,7 @@ int main() {
     
     while(1) {
         current_status = query_all();
-        if (!array_eq(old_status, current_status)) {
+        if (!array_eq(old_status, current_status, NB_PINS)) {
             // At least one pins has changed.
             // TBD
         }
