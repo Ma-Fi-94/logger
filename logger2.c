@@ -57,7 +57,7 @@ int main() {
     while(1) {
         current_status = query_all();
 
-        if (memcmp(old_status, current_status, NB_PINS)!=0) {
+        if (memcmp(old_status, current_status, NB_PINS*sizeof(int))!=0) {
             // TBD: Logging to file
             print_array(current_status, NB_PINS);
 
