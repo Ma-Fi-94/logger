@@ -1,12 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <wiringPi.h>
 
 // The GPIO pins we want to log
 int PINS[] = {2, 3, 4};
 int NB_PINS = (int) ((sizeof(PINS)) / (sizeof(PINS[0])));
 
-void init() {
+void init_gpio() {
     /*
      * Setup all desired GPIO pins for use as input
      * and pull them to UP
@@ -23,7 +24,7 @@ void init() {
 }
 
 int* query_all() {
-    /*
+    /*init_gpio
      *Query all desired GPIO pins and return their status.
      */
     
@@ -33,32 +34,22 @@ int* query_all() {
         current_status[i] = digitalRead(PINS[i]);
     }
     
-    return (current_status);
+    return current_status;
 }
 
 void print_array(int* x, int n) {
+    /*
+     * Helper function to print an int array of length n.
+     */
+
     for (int i = 0; i < n; i++) {
         printf("%i, ", x[i]);
     }
     printf("\n");
 }
 
-int array_eq(int* a, int* b, int n) {
-    /*
-     * Element-wise comparison of two int array of length n.
-     * Returns 1 if all elements are equal, otherwise returns 0;
-     */
-    for (int i = 0; i < n; i++) {
-        if (a[i] != b[i]) {
-            return 0;
-        }
-    }
-    return 1;
-}
-
-
 int main() {
-    init();
+    init_gpio();
 
     int* old_status = query_all();
     int* current_status;
@@ -66,11 +57,11 @@ int main() {
     while(1) {
         current_status = query_all();
 
-        if (!array_eq(old_status, current_status, NB_PINS)) {
+        if (memcmp(old_status, current_status, NB_PINS)!=0) {
+            // TBD: Logging to file
             print_array(current_status, NB_PINS);
 
-            // TBD: Logging to file
-
+            // Save current state as new default to compare status against
             free(old_status);
             old_status = query_all();
 
