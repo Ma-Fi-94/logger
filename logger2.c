@@ -33,18 +33,14 @@ void init_gpio() {
     }
 }
 
-int* query_all() {
+void query_all(int* x) {
     /*init_gpio
-     *Query all desired GPIO pins and return their status.
+     *Query all desired GPIO pins and write status to parameter
      */
     
-    int* current_status = (int*) malloc(NB_PINS * sizeof(int));
-    
     for (int i = 0; i < NB_PINS; i++) {
-        current_status[i] = digitalRead(PINS[i]);
+        x[i] = digitalRead(PINS[i]);
     }
-    
-    return current_status;
 }
 
 void print_state(int* x) {
@@ -70,7 +66,10 @@ void log_state(int* x) {
         // Trying to write timestamp to logfile
         time_t t;
         time(&t);
-        if( fprintf(f, "%s", ctime(&t)) <= 0 ) {
+        struct tm *tm_ptr = localtime(&t);
+        char s[100];
+        strftime(s, 100, "%Y-%m-%d,%H:%M:%S", tm_ptr);
+        if( fprintf(f, "%s", s) <= 0 ) {
             perror("Error writing to logfile");
         }
         
@@ -87,23 +86,23 @@ void log_state(int* x) {
         // Trying to close logfile
         if ( fclose(f) != 0 ) {
             perror("Error closing logfile");
-            exit(-1);
-        }
+            exit(-1);        }
     }
 }
 
 
 int main() {
     init_gpio();
-    int* old_status = query_all();
-    int* current_status;
+    int* old_status = (int*) malloc(NB_PINS * sizeof(int));
+    int* current_status = (int*) malloc(NB_PINS * sizeof(int));
     if (old_status == NULL || current_status == NULL) {
-        perror("Error allocating memory")M
+        perror("Error allocating memory");
         exit(-1);
     }
+    query_all(old_status);
     
     while(1) {
-        current_status = query_all();
+        query_all(current_status);
 
         if (memcmp(old_status, current_status, NB_PINS*sizeof(int)) != 0) {
             // Write new state to screen
@@ -113,13 +112,14 @@ int main() {
             log_state(current_status);
 
             // Save current state as new default to compare status against
-            free(old_status);
-            old_status = query_all();
+            memcpy(old_status, current_status, NB_PINS*sizeof(int));
 
         }
 
-        free(current_status);
         delay(POLLING_INTERVAL_MS);
     }
+    
+    free(old_status);
+    free(current_status);
     return 0;
 }
