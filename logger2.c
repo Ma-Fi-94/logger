@@ -1,10 +1,20 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <wiringPi.h>
+// The polling interval [ms]
+#define POLLING_INTERVAL_MS 100
+
+// The name of the logfile
+#define LOGFILE "./history.log"
 
 // The GPIO pins we want to log
 int PINS[] = {2, 3, 4};
+
+///////////////////////////////////////////////////////////////////////////////
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+#include <wiringPi.h>
+
 int NB_PINS = (int) ((sizeof(PINS)) / (sizeof(PINS[0])));
 
 void init_gpio() {
@@ -48,9 +58,43 @@ void print_array(int* x, int n) {
     printf("\n");
 }
 
+void log_state(int* x, int n) {
+    // Trying to open logfile
+    FILE *f = fopen(LOGFILE, "a");
+    
+    if (f == NULL) {
+        perror("Error opening logfile");
+        exit(-1);
+    } else {
+        
+        // Trying to write timestamp to logfile
+        time_t t;
+        time(&t);
+        if( fprintf(f, "%s", ctime(&t)) <= 0 ) {
+            perror("Error writing to logfile");
+        }
+        
+        // Trying to write GPIO states to logfile
+        for (int i = 0; i < n; i++) {
+            if ( fprintf(f, ",%i", x[i]) <= 0 ) {
+                perror("Error writing to logfile");
+            }
+        }
+        if ( fprintf(f, "\n") <= 0 ) {
+            perror("Error writing to logfile");
+        }
+        
+        // Trying to close logfile
+        if ( fclose(f) != 0 ) {
+            perror("Error closing logfile");
+            exit(-1);
+        }
+    }
+}
+
+
 int main() {
     init_gpio();
-
     int* old_status = query_all();
     int* current_status;
     
@@ -58,8 +102,11 @@ int main() {
         current_status = query_all();
 
         if (memcmp(old_status, current_status, NB_PINS*sizeof(int))!=0) {
-            // TBD: Logging to file
+            // Write new state to screen
             print_array(current_status, NB_PINS);
+            
+            // Write new status to logfile
+            log_state(current_status, NB_PINS);
 
             // Save current state as new default to compare status against
             free(old_status);
@@ -68,7 +115,7 @@ int main() {
         }
 
         free(current_status);
-        delay(100);
+        delay(POLLING_INTERVAL_MS);
     }
     return 0;
 }
