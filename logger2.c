@@ -97,6 +97,10 @@ int main() {
     init_gpio();
     int* old_status = query_all();
     int* current_status;
+    if (old_status == NULL || current_status == NULL) {
+        perror("Error allocating memory")M
+        exit(-1);
+    }
     
     while(1) {
         current_status = query_all();
