@@ -47,18 +47,18 @@ int* query_all() {
     return current_status;
 }
 
-void print_array(int* x, int n) {
+void print_state(int* x) {
     /*
-     * Helper function to print an int array of length n.
+     * Helper function to print the GPIO pin state
      */
 
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < NB_PINS; i++) {
         printf("%i, ", x[i]);
     }
     printf("\n");
 }
 
-void log_state(int* x, int n) {
+void log_state(int* x) {
     // Trying to open logfile
     FILE *f = fopen(LOGFILE, "a");
     
@@ -75,7 +75,7 @@ void log_state(int* x, int n) {
         }
         
         // Trying to write GPIO states to logfile
-        for (int i = 0; i < n; i++) {
+        for (int i = 0; i < NB_PINS; i++) {
             if ( fprintf(f, ",%i", x[i]) <= 0 ) {
                 perror("Error writing to logfile");
             }
@@ -105,12 +105,12 @@ int main() {
     while(1) {
         current_status = query_all();
 
-        if (memcmp(old_status, current_status, NB_PINS*sizeof(int))!=0) {
+        if (memcmp(old_status, current_status, NB_PINS*sizeof(int)) != 0) {
             // Write new state to screen
-            print_array(current_status, NB_PINS);
+            print_state(current_status);
             
             // Write new status to logfile
-            log_state(current_status, NB_PINS);
+            log_state(current_status);
 
             // Save current state as new default to compare status against
             free(old_status);
