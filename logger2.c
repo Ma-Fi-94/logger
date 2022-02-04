@@ -1,5 +1,7 @@
-// The polling interval [ms]
-#define POLLING_INTERVAL_MS 100
+// The interval [ms] after an event, where no
+// new event in the same pin is logged.
+// This is to avoid logging contact bounce
+#define WAIT_INTERVAL_MS 20
 
 // The name of the logfile
 #define LOGFILE "./history.log"
@@ -17,41 +19,65 @@ int PINS[] = {2, 3, 4};
 
 int NB_PINS = (int) ((sizeof(PINS)) / (sizeof(PINS[0])));
 
+struct timedstate {
+        int state;
+        time_t time_of_state;
+};
+
+// We only ever use these two arrays to avoid repeated malloc() and free().
+// Thus, we avoid heap fragmentation during longer use.
+// We make them global to avoid passing them around.
+// This should give a slight performance gain, I guess.
+struct timedstate* LAST_STATE_WITH_TIME;
+int* CURRENT_STATE;
+
+void record_last_state() {
+        /*
+         * Record current state and time to LAST_STATE_WITH_TIME.
+         */
+        for (int i = 0; i < NB_PINS; i++) {
+                LAST_STATE_WITH_TIME[i].state = digitalRead(PINS[i]);
+                LAST_STATE_WITH_TIME[i].time_of_state = time(NULL);
+        }
+}
+
+
+void record_current() {
+        /*
+         * Query all desired GPIO pins and write status to CURRENT_STATE
+         */
+
+        for (int i = 0; i < NB_PINS; i++) {
+            CURRENT_STATE[i] = digitalRead(PINS[i]);
+        }
+}
+
+
 void init_gpio() {
-    /*
-     * Setup all desired GPIO pins for use as input
-     * and pull them to UP
-     */
-    
-    // Setup GPIO usage
-    wiringPiSetupGpio();
+        /*
+         * Setup all desired GPIO pins for use as input
+         * and pull them to UP
+         */
 
-    // Set all desired GPIO pins to input mode and UP
-    for (int i = 0; i <= NB_PINS; i++) {
-        pinMode(PINS[i], INPUT);
-        pullUpDnControl(PINS[i], PUD_UP);
-    }
+        // Setup GPIO usage
+        wiringPiSetupGpio();
+
+        // Set all desired GPIO pins to input mode and UP
+        for (int i = 0; i <= NB_PINS; i++) {
+                pinMode(PINS[i], INPUT);
+                pullUpDnControl(PINS[i], PUD_UP);
+        }
 }
 
-void query_all(int* x) {
-    /*init_gpio
-     *Query all desired GPIO pins and write status to parameter
-     */
-    
-    for (int i = 0; i < NB_PINS; i++) {
-        x[i] = digitalRead(PINS[i]);
-    }
-}
+void print_current() {
+        /*
+         * Helper function to print the CURRENT_STATE
+         */
 
-void print_state(int* x) {
-    /*
-     * Helper function to print the GPIO pin state
-     */
-
-    for (int i = 0; i < NB_PINS; i++) {
-        printf("%i, ", x[i]);
-    }
-    printf("\n");
+        for (int i = 0; i < NB_PINS; i++) {
+                printf("%i, ", CURRENT_STATE[i]);
+        }
+        printf("\n");
 }
 
 void handle() {
@@ -60,12 +86,16 @@ void handle() {
      */
 
     // Query current state
-    int* state = (int*) malloc(NB_PINS * sizeof(int));
-    query_all(state);
+    record_current();
+
+    // TODO to avoid contact bounce:
+    // We now need to figure out, which pin has changed by comparing CURRENT_STATE with LAST_STATE_WITH_TIME
+    // Then, we need to check if the last event of this pin was within WAIT_INTERVAL_MS
+    // If yes, we just leave right here. If not, we continue.
 
     // Print it to screen
     // TODO: Add debug switch for this
-    print_state(state);
+    print_current(CURRENT_STATE);
 
     // Trying to open logfile
     FILE *f = fopen(LOGFILE, "a");
@@ -87,7 +117,7 @@ void handle() {
         
         // Trying to write GPIO states to logfile
         for (int i = 0; i < NB_PINS; i++) {
-            if ( fprintf(f, ",%i", state[i]) <= 0 ) {
+            if ( fprintf(f, ",%i", CURRENT_STATE[i]) <= 0 ) {
                 perror("Error writing to logfile");
             }
         }
@@ -100,16 +130,24 @@ void handle() {
             perror("Error closing logfile");
             exit(-1);
         }
-
-        // Cleanup
-        free(state);
     }
 }
 
 
 int main() {
-        // Init
+        // Init pins
         init_gpio();
+
+        // Allocate memory for the two globals
+        LAST_STATE_WITH_TIME  = (struct timedstate*) malloc(NB_PINS * sizeof(struct timedstate));
+        CURRENT_STATE  = (int*) malloc(NB_PINS * sizeof(int));
+        if (LAST_STATE_WITH_TIME == NULL || CURRENT_STATE == NULL) {
+                perror("Error allocating memory");
+                exit(-1);
+        }
+
+        // Set up last_state with the current pin states and current time
+        record_last_state();
 
         // Bind interrupt to handler
         for (int i = 0; i < NB_PINS; i++) {
