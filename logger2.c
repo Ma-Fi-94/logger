@@ -54,7 +54,19 @@ void print_state(int* x) {
     printf("\n");
 }
 
-void log_state(int* x) {
+void handle() {
+    /*
+     * Called when one of the tracked pins changes
+     */
+
+    // Query current state
+    int* state = (int*) malloc(NB_PINS * sizeof(int));
+    query_all(state);
+
+    // Print it to screen
+    // TODO: Add debug switch for this
+    print_state(state);
+
     // Trying to open logfile
     FILE *f = fopen(LOGFILE, "a");
     
@@ -75,7 +87,7 @@ void log_state(int* x) {
         
         // Trying to write GPIO states to logfile
         for (int i = 0; i < NB_PINS; i++) {
-            if ( fprintf(f, ",%i", x[i]) <= 0 ) {
+            if ( fprintf(f, ",%i", state[i]) <= 0 ) {
                 perror("Error writing to logfile");
             }
         }
@@ -86,40 +98,28 @@ void log_state(int* x) {
         // Trying to close logfile
         if ( fclose(f) != 0 ) {
             perror("Error closing logfile");
-            exit(-1);        }
+            exit(-1);
+        }
+
+        // Cleanup
+        free(state);
     }
 }
 
 
 int main() {
-    init_gpio();
-    int* old_status = (int*) malloc(NB_PINS * sizeof(int));
-    int* current_status = (int*) malloc(NB_PINS * sizeof(int));
-    if (old_status == NULL || current_status == NULL) {
-        perror("Error allocating memory");
-        exit(-1);
-    }
-    query_all(old_status);
-    
-    while(1) {
-        query_all(current_status);
+        // Init
+        init_gpio();
 
-        if (memcmp(old_status, current_status, NB_PINS*sizeof(int)) != 0) {
-            // Write new state to screen
-            print_state(current_status);
-            
-            // Write new status to logfile
-            log_state(current_status);
-
-            // Save current state as new default to compare status against
-            memcpy(old_status, current_status, NB_PINS*sizeof(int));
-
+        // Bind interrupt to handler
+        for (int i = 0; i < NB_PINS; i++) {
+                wiringPiISR(PINS[i], INT_EDGE_BOTH, &handle);
         }
 
-        delay(POLLING_INTERVAL_MS);
-    }
-    
-    free(old_status);
-    free(current_status);
-    return 0;
+        // Waste time
+        while (1) {
+                delay(1);
+        }
+
+
 }
