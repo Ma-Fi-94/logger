@@ -15,13 +15,15 @@ int PINS[] = {2, 3, 4};
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <sys/time.h>
 #include <wiringPi.h>
 
 int NB_PINS = (int) ((sizeof(PINS)) / (sizeof(PINS[0])));
 
 struct timedstate {
         int state;
-        time_t time_of_state;
+        time_t time_of_state_secs;
+        int additional_usecs;
 };
 
 // We only ever use these two arrays to avoid repeated malloc() and free().
@@ -35,9 +37,13 @@ void record_last_state() {
         /*
          * Record current state and time to LAST_STATE_WITH_TIME.
          */
+        struct timeval tv_now;
+        gettimeofday(&tv_now, NULL);
+
         for (int i = 0; i < NB_PINS; i++) {
                 LAST_STATE_WITH_TIME[i].state = digitalRead(PINS[i]);
-                LAST_STATE_WITH_TIME[i].time_of_state = time(NULL);
+                LAST_STATE_WITH_TIME[i].time_of_state_secs = tv_now.tv_sec;
+                LAST_STATE_WITH_TIME[i].additional_usecs = tv_now.tv_usec;
         }
 }
 
@@ -88,49 +94,74 @@ void handle() {
     // Query current state
     record_current();
 
-    // TODO to avoid contact bounce:
-    // We now need to figure out, which pin has changed by comparing CURRENT_STATE with LAST_STATE_WITH_TIME
-    // Then, we need to check if the last event of this pin was within WAIT_INTERVAL_MS
-    // If yes, we just leave right here. If not, we continue.
+    // Which pin has changed?
+    int i_changed = -1;
+    for (int i = 0; i < NB_PINS; i++) {
+        if (CURRENT_STATE[i] != LAST_STATE_WITH_TIME[i].state) {
+                i_changed = i;
+                break;
+        }
+    }
 
-    // Print it to screen
-    // TODO: Add debug switch for this
-    print_current(CURRENT_STATE);
+    // If nothing has changed (contact bounce), we leave
+    if (i_changed == -1) {
+        return;
+    }
+
+    // Was the change within WAIT_INTERVAL_MS?
+    // If yes, we ignore it (contact bounce) and leave
+    struct timeval tv_now;
+    gettimeofday(&tv_now, NULL);
+    double time_diff_ms = difftime(tv_now.tv_sec, LAST_STATE_WITH_TIME[i_changed].time_of_state_secs) * 1000.0;
+    time_diff_ms += (tv_now.tv_usec - LAST_STATE_WITH_TIME[i_changed].additional_usecs) / 1000.0; 
+    if (time_diff_ms < WAIT_INTERVAL_MS) {
+        return;
+    }
+
+    // Print current state to screen
+    // TODO: make debug switch for this.
+    print_current();
 
     // Trying to open logfile
     FILE *f = fopen(LOGFILE, "a");
-    
+
     if (f == NULL) {
         perror("Error opening logfile");
         exit(-1);
-    } else {
-        
-        // Trying to write timestamp to logfile
-        time_t t;
-        time(&t);
-        struct tm *tm_ptr = localtime(&t);
-        char s[100];
-        strftime(s, 100, "%Y-%m-%d,%H:%M:%S", tm_ptr);
-        if( fprintf(f, "%s", s) <= 0 ) {
+    }
+
+
+    // Trying to write timestamp to logfile
+    time_t t;
+    time(&t);
+    struct tm *tm_ptr = localtime(&t);
+    char s[100];
+    strftime(s, 100, "%Y-%m-%d,%H:%M:%S", tm_ptr);
+    if( fprintf(f, "%s", s) <= 0 ) {
+        perror("Error writing to logfile");
+        exit(-1);
+    }
+
+    // Trying to write GPIO states to logfile
+    for (int i = 0; i < NB_PINS; i++) {
+        if ( fprintf(f, ",%i", CURRENT_STATE[i]) <= 0 ) {
             perror("Error writing to logfile");
-        }
-        
-        // Trying to write GPIO states to logfile
-        for (int i = 0; i < NB_PINS; i++) {
-            if ( fprintf(f, ",%i", CURRENT_STATE[i]) <= 0 ) {
-                perror("Error writing to logfile");
-            }
-        }
-        if ( fprintf(f, "\n") <= 0 ) {
-            perror("Error writing to logfile");
-        }
-        
-        // Trying to close logfile
-        if ( fclose(f) != 0 ) {
-            perror("Error closing logfile");
             exit(-1);
         }
     }
+    if ( fprintf(f, "\n") <= 0 ) {
+        perror("Error writing to logfile");
+        exit(-1);
+    }
+
+    // Trying to close logfile
+    if ( fclose(f) != 0 ) {
+        perror("Error closing logfile");
+        exit(-1);
+    }
+
+    // Save current to last_state
+    record_last_state();
 }
 
 
