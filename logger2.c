@@ -9,6 +9,9 @@
 // The GPIO pins we want to log
 int PINS[] = {2, 3, 4};
 
+// Whether to log to screen as well
+#define PRINT_TO_SCREEN
+
 ///////////////////////////////////////////////////////////////////////////////
 
 #include <stdio.h>
@@ -118,9 +121,11 @@ void handle() {
         return;
     }
 
-    // Print current state to screen
-    // TODO: make debug switch for this.
+    // Print current state to screen if desired
+    // To avoid an if every time we're here, we use the preprocessor
+    #ifdef PRINT_TO_SCREEN
     print_current();
+    #endif
 
     // Trying to open logfile
     FILE *f = fopen(LOGFILE, "a");
